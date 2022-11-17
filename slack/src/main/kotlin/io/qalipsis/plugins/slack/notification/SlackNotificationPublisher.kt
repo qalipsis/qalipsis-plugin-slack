@@ -95,8 +95,7 @@ internal class SlackNotificationPublisher(
                 .channel(configuration.channel)
                 .blocks(
                     asBlocks(header {
-                        it
-                            .text(plainText("$campaignKey ${report.status} $emoji", true))
+                        it.text(plainText("$campaignKey ${report.status} $emoji", true))
                     })
                 )
                 .attachments(
@@ -111,8 +110,7 @@ internal class SlackNotificationPublisher(
                                     }
                                 )
                             )
-                        }
-                    )
+                    })
                 )
         }
     }
