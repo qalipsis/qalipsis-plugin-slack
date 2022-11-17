@@ -21,6 +21,7 @@ import io.qalipsis.api.report.ExecutionStatus
 import io.qalipsis.api.sync.asSuspended
 import io.qalipsis.plugins.slack.notification.SlackNotificationConfiguration
 import io.qalipsis.plugins.slack.notification.SlackNotificationPublisher
+import io.qalipsis.plugins.slack.notification.ReportExecutionStatus
 import io.qalipsis.plugins.slack.notification.catadioptre.asyncSlackMethodsClient
 import io.qalipsis.plugins.slack.notification.catadioptre.postChatMessageRequest
 import io.qalipsis.test.coroutines.TestDispatcherProvider
@@ -42,7 +43,7 @@ internal class SlackNotificationPublisherIntegrationTest {
     @Value("\${report.export.slack.token}")
     private lateinit var botToken: String
 
-    private lateinit var mockSlackClient: AsyncMethodsClient
+    private lateinit var spiedSlackClient: AsyncMethodsClient
 
     private lateinit var slackNotificationPublisher: SlackNotificationPublisher
 
@@ -67,15 +68,15 @@ internal class SlackNotificationPublisherIntegrationTest {
         slackNotificationConfiguration = mockk {
             every { enabled } returns true
             every { channel } returns "slack-test"
-            every { status } returns "ALL"
+            every { status } returns ReportExecutionStatus.ALL
             every { url } returns "https://slack.com/api/chat.postMessage"
             every { token } returns botToken
         }
         slackNotificationPublisher =
             SlackNotificationPublisher(slackNotificationConfiguration)
         slackNotificationPublisher.init()
-        mockSlackClient = spyk(slackNotificationPublisher.asyncSlackMethodsClient())
-        slackNotificationPublisher.asyncSlackMethodsClient(mockSlackClient)
+        spiedSlackClient = spyk(slackNotificationPublisher.asyncSlackMethodsClient())
+        slackNotificationPublisher.asyncSlackMethodsClient(spiedSlackClient)
     }
 
 
@@ -199,22 +200,24 @@ internal class SlackNotificationPublisherIntegrationTest {
 
     private fun composeMessage(report: CampaignReport): String {
         val duration = report.end?.let { Duration.between(report.start, it).toSeconds() }
-        return "*Campaign*.......................................${report.campaignKey}\n" +
-                "*Start*.................................................${report.start}\n" +
-                "*End*...................................................${report.end ?: "<Running>"}\n" +
-                "*Duration*.........................................${duration?.let { "$it seconds" } ?: "<Running>"}\n" +
-                "*Started minions*............................${report.startedMinions}\n" +
-                "*Completed minions*.....................${report.completedMinions}\n" +
-                "*Successful steps executions*.....${report.successfulExecutions}\n" +
-                "*Failed steps executions*..............${report.failedExecutions}\n" +
-                "*Status*..............................................${report.status}"
+        return """
+            *Campaign*.......................................${report.campaignKey}
+            *Start*.................................................${report.start}
+            *End*...................................................${report.end ?: "<Running>"}
+            *Duration*.........................................${duration?.let { "$it seconds" } ?: "<Running>"}
+            *Started minions*............................${report.startedMinions}
+            *Completed minions*.....................${report.completedMinions}
+            *Successful steps executions*.....${report.successfulExecutions}
+            *Failed steps executions*..............${report.failedExecutions}
+            *Status*..............................................${report.status}
+        """.trimIndent()
     }
 
     /**
      * Fetch message using the channelId and the message id
      */
     private fun retrieveMessage(channelId: String, messageId: String): Message {
-        val result = mockSlackClient.conversationsHistory { r ->
+        val result = spiedSlackClient.conversationsHistory { r ->
             r
                 .token(slackNotificationConfiguration.token)
                 .channel(channelId)

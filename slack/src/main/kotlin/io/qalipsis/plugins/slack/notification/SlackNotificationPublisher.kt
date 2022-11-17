@@ -36,8 +36,7 @@ import javax.annotation.PostConstruct
  */
 @Singleton
 @Requirements(
-    Requires(beans = [SlackNotificationConfiguration::class]),
-    Requires(property = "report.export.slack.enabled", defaultValue = "false", value = "true")
+    Requires(beans = [SlackNotificationConfiguration::class])
 )
 internal class SlackNotificationPublisher(
     val configuration: SlackNotificationConfiguration
@@ -48,8 +47,7 @@ internal class SlackNotificationPublisher(
 
     @PostConstruct
     fun init() {
-        val slack = Slack.getInstance()
-        asyncSlackMethodsClient = slack.methodsAsync(configuration.token)
+        asyncSlackMethodsClient = Slack.getInstance().methodsAsync(configuration.token)
     }
 
     override suspend fun publish(campaignKey: CampaignKey, report: CampaignReport) {
@@ -63,24 +61,24 @@ internal class SlackNotificationPublisher(
             postChatMessageRequest(campaignKey, report, messageBody, colorScheme).asSuspended().get()
         } catch (requestFailureException: SlackApiException) {
             logger.error { "Failed to send notification: ${requestFailureException.message}" }
-
         } catch (connectivityException: IOException) {
             logger.error { "Failed to send notification: ${connectivityException.message}" }
         }
-
     }
 
     private fun composeMessageBody(report: CampaignReport): String {
         val duration = report.end?.let { Duration.between(report.start, it).toSeconds() }
-        return "*Campaign*.......................................${report.campaignKey}\n" +
-                "*Start*.................................................${report.start}\n" +
-                "*End*...................................................${report.end ?: RUNNING_INDICATOR}\n" +
-                "*Duration*.........................................${duration?.let { "$it seconds" } ?: RUNNING_INDICATOR}\n" +
-                "*Started minions*............................${report.startedMinions}\n" +
-                "*Completed minions*.....................${report.completedMinions}\n" +
-                "*Successful steps executions*......${report.successfulExecutions}\n" +
-                "*Failed steps executions*...............${report.failedExecutions}\n" +
-                "*Status*..............................................${report.status}"
+        return """
+            *Campaign*.......................................${report.campaignKey}
+            *Start*.................................................${report.start}
+            *End*...................................................${report.end ?: RUNNING_INDICATOR}
+            *Duration*.........................................${duration?.let { "$it seconds" } ?: RUNNING_INDICATOR}
+            *Started minions*............................${report.startedMinions}
+            *Completed minions*.....................${report.completedMinions}
+            *Successful steps executions*......${report.successfulExecutions}
+            *Failed steps executions*...............${report.failedExecutions}
+            *Status*..............................................${report.status}
+        """.trimIndent()
     }
 
     @KTestable
@@ -98,12 +96,8 @@ internal class SlackNotificationPublisher(
                 .blocks(
                     asBlocks(header {
                         it
-                            .text(
-                                plainText("$campaignKey ${report.status} $emoji", true)
-                            )
-                    }
-
-                    )
+                            .text(plainText("$campaignKey ${report.status} $emoji", true))
+                    })
                 )
                 .attachments(
                     asAttachments(attachment {
@@ -113,13 +107,12 @@ internal class SlackNotificationPublisher(
                             .blocks(
                                 asBlocks(
                                     section { s: SectionBlock.SectionBlockBuilder ->
-                                        s.text(
-                                            markdownText(messageBody)
-                                        )
+                                        s.text(markdownText(messageBody))
                                     }
                                 )
                             )
-                    })
+                        }
+                    )
                 )
         }
     }
