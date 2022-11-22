@@ -13,6 +13,9 @@ import com.slack.api.model.block.composition.MarkdownTextObject
 import com.slack.api.model.block.composition.PlainTextObject
 import io.micronaut.context.annotation.Value
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest
+import io.mockk.coEvery
+import io.mockk.coExcludeRecords
+import io.mockk.coVerifyAll
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.spyk
@@ -26,6 +29,8 @@ import io.qalipsis.plugins.slack.notification.catadioptre.asyncSlackMethodsClien
 import io.qalipsis.plugins.slack.notification.catadioptre.postChatMessageRequest
 import io.qalipsis.test.coroutines.TestDispatcherProvider
 import io.qalipsis.test.mockk.WithMockk
+import io.qalipsis.test.mockk.coVerifyNever
+import io.qalipsis.test.mockk.coVerifyOnce
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.RegisterExtension
@@ -51,6 +56,8 @@ internal class SlackNotificationPublisherIntegrationTest {
 
     private lateinit var slackNotificationConfiguration: SlackNotificationConfiguration
 
+    private lateinit var mockNotificationPublisher: SlackNotificationPublisher
+
     @BeforeEach
     internal fun setupAll() {
         campaignReportPrototype = CampaignReport(
@@ -68,7 +75,7 @@ internal class SlackNotificationPublisherIntegrationTest {
         slackNotificationConfiguration = mockk {
             every { enabled } returns true
             every { channel } returns "slack-test"
-            every { status } returns ReportExecutionStatus.ALL
+            every { status } returns setOf(ReportExecutionStatus.ALL)
             every { url } returns "https://slack.com/api/chat.postMessage"
             every { token } returns botToken
         }
@@ -77,46 +84,47 @@ internal class SlackNotificationPublisherIntegrationTest {
         slackNotificationPublisher.init()
         spiedSlackClient = spyk(slackNotificationPublisher.asyncSlackMethodsClient())
         slackNotificationPublisher.asyncSlackMethodsClient(spiedSlackClient)
+        mockNotificationPublisher = spyk(SlackNotificationPublisher(slackNotificationConfiguration), recordPrivateCalls = true)
     }
 
-
     @Test
-    fun `should send notification for successful campaign`() = testDispatcherProvider.run {
-        // given
-        val campaignReport = campaignReportPrototype.copy(failedExecutions = 0)
-        val message = composeMessage(campaignReport)
-        val colorScheme = getColorScheme(campaignReport.status)
+    fun `should send notification for successful campaign with appropriate color scheme`() =
+        testDispatcherProvider.run {
+            // given
+            val campaignReport = campaignReportPrototype.copy(failedExecutions = 0)
+            val message = composeMessage(campaignReport)
+            val colorScheme = getColorScheme(campaignReport.status)
 
-        // when
-        val response = slackNotificationPublisher.postChatMessageRequest(
-            campaignReport.campaignKey,
-            campaignReport,
-            message,
-            colorScheme
-        ).asSuspended().get()
+            // when
+            val response = slackNotificationPublisher.postChatMessageRequest(
+                campaignReport.campaignKey,
+                campaignReport,
+                message,
+                colorScheme
+            ).asSuspended().get()
 
-        // then
-        val retrievedMessage: Message = retrieveMessage(response.channel, response.ts)
-        val headerBlock = retrievedMessage.blocks[0] as HeaderBlock
-        val attachmentBlock = retrievedMessage.attachments[0]
-        assertThat(headerBlock.text).isEqualTo(
-            PlainTextObject(
-                "${campaignReport.campaignKey} ${campaignReport.status} ${colorScheme.second}",
-                true
+            // then
+            val retrievedMessage: Message = retrieveMessage(response.channel, response.ts)
+            val headerBlock = retrievedMessage.blocks[0] as HeaderBlock
+            val attachmentBlock = retrievedMessage.attachments[0]
+            assertThat(headerBlock.text).isEqualTo(
+                PlainTextObject(
+                    "${campaignReport.campaignKey} ${campaignReport.status} ${colorScheme.second}",
+                    true
+                )
             )
-        )
-        assertThat(attachmentBlock.blocks[0] as SectionBlock).all {
-            prop(SectionBlock::getType).isEqualTo("section")
-            prop(SectionBlock::getText).isEqualTo(MarkdownTextObject(message, false))
+            assertThat(attachmentBlock.blocks[0] as SectionBlock).all {
+                prop(SectionBlock::getType).isEqualTo("section")
+                prop(SectionBlock::getText).isEqualTo(MarkdownTextObject(message, false))
+            }
+            assertThat(attachmentBlock).all {
+                prop(Attachment::getFallback).isEqualTo("${campaignReport.campaignKey} ${campaignReport.status}")
+                prop(Attachment::getColor).isEqualTo(colorScheme.first)
+            }
         }
-        assertThat(attachmentBlock).all {
-            prop(Attachment::getFallback).isEqualTo("${campaignReport.campaignKey} ${campaignReport.status}")
-            prop(Attachment::getColor).isEqualTo(colorScheme.first)
-        }
-    }
 
     @Test
-    fun `should send notification for a failed campaign`() = testDispatcherProvider.run {
+    fun `should send notification for a failed campaign with appropriate color scheme`() = testDispatcherProvider.run {
         // given
         val campaignReport = campaignReportPrototype.copy(
             status = ExecutionStatus.FAILED,
@@ -157,46 +165,147 @@ internal class SlackNotificationPublisherIntegrationTest {
     }
 
     @Test
-    fun `should send notification for a campaign with warning or other status`() = testDispatcherProvider.run {
-        // when
-        val campaignReport = campaignReportPrototype.copy(
-            status = ExecutionStatus.WARNING,
-            failedExecutions = 500,
-            successfulExecutions = 200,
-            completedMinions = 200,
-            startedMinions = 700,
-            campaignKey = "Campaign-3"
-        )
-        val message = composeMessage(campaignReport)
-        val colorScheme = getColorScheme(campaignReport.status)
-
-        // when
-        val response = slackNotificationPublisher.postChatMessageRequest(
-            campaignReport.campaignKey,
-            campaignReport,
-            message,
-            colorScheme
-        ).asSuspended().get()
-
-        // then
-        val retrievedMessage: Message = retrieveMessage(response.channel, response.ts)
-        val headerBlock = retrievedMessage.blocks[0] as HeaderBlock
-        val attachmentBlock = retrievedMessage.attachments[0]
-        assertThat(headerBlock.text).isEqualTo(
-            PlainTextObject(
-                "${campaignReport.campaignKey} ${campaignReport.status} ${colorScheme.second}",
-                true
+    fun `should send notification for a campaign with warning status and with appropriate color scheme`() =
+        testDispatcherProvider.run {
+            // when
+            val campaignReport = campaignReportPrototype.copy(
+                status = ExecutionStatus.WARNING,
+                failedExecutions = 500,
+                successfulExecutions = 200,
+                completedMinions = 200,
+                startedMinions = 700,
+                campaignKey = "Campaign-3"
             )
-        )
-        assertThat(attachmentBlock.blocks[0] as SectionBlock).all {
-            prop(SectionBlock::getType).isEqualTo("section")
-            prop(SectionBlock::getText).isEqualTo(MarkdownTextObject(message, false))
+            val message = composeMessage(campaignReport)
+            val colorScheme = getColorScheme(campaignReport.status)
+
+            // when
+            val response = slackNotificationPublisher.postChatMessageRequest(
+                campaignReport.campaignKey,
+                campaignReport,
+                message,
+                colorScheme
+            ).asSuspended().get()
+
+            // then
+            val retrievedMessage: Message = retrieveMessage(response.channel, response.ts)
+            val headerBlock = retrievedMessage.blocks[0] as HeaderBlock
+            val attachmentBlock = retrievedMessage.attachments[0]
+            assertThat(headerBlock.text).isEqualTo(
+                PlainTextObject(
+                    "${campaignReport.campaignKey} ${campaignReport.status} ${colorScheme.second}",
+                    true
+                )
+            )
+            assertThat(attachmentBlock.blocks[0] as SectionBlock).all {
+                prop(SectionBlock::getType).isEqualTo("section")
+                prop(SectionBlock::getText).isEqualTo(MarkdownTextObject(message, false))
+            }
+            assertThat(attachmentBlock).all {
+                prop(Attachment::getFallback).isEqualTo("${campaignReport.campaignKey} ${campaignReport.status}")
+                prop(Attachment::getColor).isEqualTo(colorScheme.first)
+            }
         }
-        assertThat(attachmentBlock).all {
-            prop(Attachment::getFallback).isEqualTo("${campaignReport.campaignKey} ${campaignReport.status}")
-            prop(Attachment::getColor).isEqualTo(colorScheme.first)
+
+    @Test
+    fun `should not send notification when campaign report status is not in the list of subscribed statuses`() =
+        testDispatcherProvider.run {
+            //given
+            every { slackNotificationConfiguration.status } returns setOf(
+                ReportExecutionStatus.ABORTED,
+                ReportExecutionStatus.FAILED
+            )
+            val campaignReport = campaignReportPrototype.copy(campaignKey = "Campaign-4")
+            coEvery { mockNotificationPublisher["sendNotification"](any<String>(), any<CampaignReport>()) } returns Unit
+
+            // when
+            mockNotificationPublisher.publish(campaignReport.campaignKey, campaignReport)
+            coExcludeRecords { mockNotificationPublisher.configuration }
+            coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
+
+            //then
+            coVerifyNever { mockNotificationPublisher["sendNotification"](campaignReport.campaignKey, campaignReport) }
         }
-    }
+
+    @Test
+    fun `should not send notification when campaign report status is not in the list of known report statuses`() =
+        testDispatcherProvider.run {
+            //given
+            every { slackNotificationConfiguration.status } returns setOf(
+                ReportExecutionStatus.ABORTED,
+                ReportExecutionStatus.FAILED
+            )
+            val campaignReport =
+                campaignReportPrototype.copy(campaignKey = "Campaign-5", status = ExecutionStatus.QUEUED)
+            coEvery { mockNotificationPublisher["sendNotification"](any<String>(), any<CampaignReport>()) } returns Unit
+
+            // when
+            mockNotificationPublisher.publish(campaignReport.campaignKey, campaignReport)
+            coExcludeRecords { mockNotificationPublisher.configuration }
+            coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
+
+            //then
+            coVerifyNever { mockNotificationPublisher["sendNotification"](campaignReport.campaignKey, campaignReport) }
+        }
+
+    @Test
+    fun `should send notification when campaign report status is in the list of subscribed statuses`() =
+        testDispatcherProvider.run {
+            //given
+            every { slackNotificationConfiguration.status } returns setOf(
+                ReportExecutionStatus.ABORTED,
+                ReportExecutionStatus.FAILED
+            )
+            val campaignReport =
+                campaignReportPrototype.copy(campaignKey = "Campaign-6", status = ExecutionStatus.ABORTED)
+            coEvery { mockNotificationPublisher["sendNotification"](any<String>(), any<CampaignReport>()) } returns Unit
+
+            // when
+            mockNotificationPublisher.publish(campaignReport.campaignKey, campaignReport)
+            coExcludeRecords { mockNotificationPublisher.configuration }
+            coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
+
+            //then
+            coVerifyOnce { mockNotificationPublisher["sendNotification"](campaignReport.campaignKey, campaignReport) }
+        }
+
+    @Test
+    fun `should send an email when campaign report status is in the list of subscribed statuses`() =
+        testDispatcherProvider.run {
+            //given
+            val campaignReport1 =
+                campaignReportPrototype.copy(campaignKey = "Campaign-7", status = ExecutionStatus.SUCCESSFUL)
+            val campaignReport2 =
+                campaignReportPrototype.copy(campaignKey = "Campaign-8", status = ExecutionStatus.WARNING)
+            val campaignReport3 =
+                campaignReportPrototype.copy(campaignKey = "Campaign-9", status = ExecutionStatus.ABORTED)
+            val campaignReport4 =
+                campaignReportPrototype.copy(campaignKey = "Campaign-10", status = ExecutionStatus.FAILED)
+
+            coEvery { mockNotificationPublisher["sendNotification"](any<String>(), any<CampaignReport>()) } returns Unit
+
+            // when
+            mockNotificationPublisher.publish(campaignReport1.campaignKey, campaignReport1)
+            mockNotificationPublisher.publish(campaignReport2.campaignKey, campaignReport2)
+            mockNotificationPublisher.publish(campaignReport3.campaignKey, campaignReport3)
+            mockNotificationPublisher.publish(campaignReport4.campaignKey, campaignReport4)
+
+            coExcludeRecords { mockNotificationPublisher.configuration }
+            coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
+
+            //then
+            coVerifyAll {
+                mockNotificationPublisher["sendNotification"](campaignReport1.campaignKey,
+                    campaignReport1)
+                mockNotificationPublisher["sendNotification"](campaignReport2.campaignKey,
+                    campaignReport2)
+                mockNotificationPublisher["sendNotification"](campaignReport3.campaignKey,
+                    campaignReport3)
+                mockNotificationPublisher["sendNotification"](campaignReport4.campaignKey,
+                    campaignReport4)
+            }
+        }
+
 
     private fun composeMessage(report: CampaignReport): String {
         val duration = report.end?.let { Duration.between(report.start, it).toSeconds() }

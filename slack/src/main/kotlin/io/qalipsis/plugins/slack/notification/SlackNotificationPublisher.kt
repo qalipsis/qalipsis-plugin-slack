@@ -51,6 +51,15 @@ internal class SlackNotificationPublisher(
     }
 
     override suspend fun publish(campaignKey: CampaignKey, report: CampaignReport) {
+        // subscribe to notification
+        val reportStatus = ReportExecutionStatus.values().firstOrNull { it.name === report.status.toString() }
+        if (reportStatus != null && ((configuration.status.contains(ReportExecutionStatus.ALL)) || configuration.status.contains(
+                ReportExecutionStatus.valueOf(reportStatus.toString())
+            ))
+        ) sendNotification(campaignKey, report)
+    }
+
+    private suspend fun sendNotification(campaignKey: CampaignKey, report: CampaignReport) {
         try {
             val messageBody = composeMessageBody(report)
             val colorScheme = when (report.status) {
@@ -59,6 +68,7 @@ internal class SlackNotificationPublisher(
                 else -> Pair(FAILURE_COLOR, FAILURE_MARK)
             }
             postChatMessageRequest(campaignKey, report, messageBody, colorScheme).asSuspended().get()
+            logger.info { "Notification sent" }
         } catch (requestFailureException: SlackApiException) {
             logger.error { "Failed to send notification: ${requestFailureException.message}" }
         } catch (connectivityException: IOException) {

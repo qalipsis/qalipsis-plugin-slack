@@ -25,7 +25,7 @@ interface SlackNotificationConfiguration {
 
     @get:Bindable(defaultValue = "ALL")
     @get:NotNull
-    val status: ReportExecutionStatus
+    val status: Set<ReportExecutionStatus>
 
     @get:Bindable(defaultValue = "https://slack.com/api/chat.postMessage")
     @get:NotNull
