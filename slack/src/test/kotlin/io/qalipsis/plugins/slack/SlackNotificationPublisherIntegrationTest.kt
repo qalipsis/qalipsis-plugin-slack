@@ -215,7 +215,7 @@ internal class SlackNotificationPublisherIntegrationTest {
                 ReportExecutionStatus.ABORTED,
                 ReportExecutionStatus.FAILED
             )
-            val campaignReport = campaignReportPrototype.copy(campaignKey = "Campaign-4")
+            val campaignReport = campaignReportPrototype.copy(campaignKey = "Campaign-4", status = ExecutionStatus.SUCCESSFUL)
             coEvery { mockNotificationPublisher["sendNotification"](any<String>(), any<CampaignReport>()) } returns Unit
 
             // when
