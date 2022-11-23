@@ -85,6 +85,9 @@ internal class SlackNotificationPublisherIntegrationTest {
         spiedSlackClient = spyk(slackNotificationPublisher.asyncSlackMethodsClient())
         slackNotificationPublisher.asyncSlackMethodsClient(spiedSlackClient)
         mockNotificationPublisher = spyk(SlackNotificationPublisher(slackNotificationConfiguration), recordPrivateCalls = true)
+
+        coExcludeRecords { mockNotificationPublisher.configuration }
+        coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
     }
 
     @Test
@@ -220,8 +223,6 @@ internal class SlackNotificationPublisherIntegrationTest {
 
             // when
             mockNotificationPublisher.publish(campaignReport.campaignKey, campaignReport)
-            coExcludeRecords { mockNotificationPublisher.configuration }
-            coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
 
             //then
             coVerifyNever { mockNotificationPublisher["sendNotification"](campaignReport.campaignKey, campaignReport) }
@@ -241,8 +242,6 @@ internal class SlackNotificationPublisherIntegrationTest {
 
             // when
             mockNotificationPublisher.publish(campaignReport.campaignKey, campaignReport)
-            coExcludeRecords { mockNotificationPublisher.configuration }
-            coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
 
             //then
             coVerifyNever { mockNotificationPublisher["sendNotification"](campaignReport.campaignKey, campaignReport) }
@@ -262,8 +261,6 @@ internal class SlackNotificationPublisherIntegrationTest {
 
             // when
             mockNotificationPublisher.publish(campaignReport.campaignKey, campaignReport)
-            coExcludeRecords { mockNotificationPublisher.configuration }
-            coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
 
             //then
             coVerifyOnce { mockNotificationPublisher["sendNotification"](campaignReport.campaignKey, campaignReport) }
@@ -289,9 +286,6 @@ internal class SlackNotificationPublisherIntegrationTest {
             mockNotificationPublisher.publish(campaignReport2.campaignKey, campaignReport2)
             mockNotificationPublisher.publish(campaignReport3.campaignKey, campaignReport3)
             mockNotificationPublisher.publish(campaignReport4.campaignKey, campaignReport4)
-
-            coExcludeRecords { mockNotificationPublisher.configuration }
-            coExcludeRecords { mockNotificationPublisher.publish(any(), any()) }
 
             //then
             coVerifyAll {
