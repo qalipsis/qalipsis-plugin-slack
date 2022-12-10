@@ -22,14 +22,6 @@ plugins {
 
 description = "QALIPSIS plugin for Slack"
 
-allOpen {
-    annotations(
-        "io.micronaut.aop.Around",
-        "jakarta.inject.Singleton",
-        "io.micronaut.validation.Validated"
-    )
-}
-
 kotlin.sourceSets["test"].kotlin.srcDir("build/generated/source/kaptKotlin/catadioptre")
 kapt.useBuildCache = false
 
@@ -43,9 +35,9 @@ dependencies {
     api("io.qalipsis:api-common")
     api("io.qalipsis:api-dsl")
 
-    implementation("com.slack.api:slack-api-client:1.26.1")
-    implementation("com.slack.api:slack-api-model-kotlin-extension:1.26.1")
-    implementation("com.slack.api:slack-api-client-kotlin-extension:1.26.1")
+    implementation("com.slack.api:slack-api-client:1.27.1")
+    implementation("com.slack.api:slack-api-model-kotlin-extension:1.27.1")
+    implementation("com.slack.api:slack-api-client-kotlin-extension:1.27.1")
     kapt(platform("io.qalipsis:plugin-platform:${coreVersion}"))
     kapt("io.qalipsis:api-processors")
     kapt("io.qalipsis:api-dsl")
