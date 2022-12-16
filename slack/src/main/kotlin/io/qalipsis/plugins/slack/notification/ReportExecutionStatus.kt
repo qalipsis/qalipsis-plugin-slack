@@ -3,7 +3,7 @@ package io.qalipsis.plugins.slack.notification
 import io.qalipsis.api.report.ExecutionStatus
 
 /**
- * Report Status for when to generate notifications.
+ * Report Status for when to trigger notifications.
  *
  * @property ALL triggers notification for successful, failed, warning and aborted campaign statutes
  * @property SUCCESSFUL triggers notification for successful campaign executions only
