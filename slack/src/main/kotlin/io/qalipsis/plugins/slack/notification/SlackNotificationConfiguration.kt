@@ -5,6 +5,7 @@ import io.micronaut.context.annotation.Requires
 import io.micronaut.core.bind.annotation.Bindable
 import io.micronaut.core.util.StringUtils
 import javax.validation.constraints.NotBlank
+import javax.validation.constraints.NotEmpty
 import javax.validation.constraints.NotNull
 
 /**
@@ -24,11 +25,11 @@ interface SlackNotificationConfiguration {
     val channel: String
 
     @get:Bindable(defaultValue = "ALL")
-    @get:NotNull
+    @get:NotEmpty
     val status: Set<ReportExecutionStatus>
 
     @get:Bindable(defaultValue = "https://slack.com/api/chat.postMessage")
-    @get:NotNull
+    @get:NotBlank
     val url: String
 
     @get:NotBlank
