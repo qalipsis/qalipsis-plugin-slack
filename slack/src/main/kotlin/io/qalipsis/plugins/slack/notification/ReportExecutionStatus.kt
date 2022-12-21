@@ -5,7 +5,7 @@ import io.qalipsis.api.report.ExecutionStatus
 /**
  * Report Status for when to trigger notifications.
  *
- * @property ALL triggers notification for successful, failed, warning and aborted campaign statutes
+ * @property ALL triggers notification for successful, failed, warning and aborted campaign statuses
  * @property SUCCESSFUL triggers notification for successful campaign executions only
  * @property WARNING triggers notification for campaign executions with warning status only
  * @property FAILED triggers notification for failed campaign executions only
