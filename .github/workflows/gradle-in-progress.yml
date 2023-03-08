@@ -49,10 +49,14 @@ jobs:
         if: always()
 
       - name: Integration Tests
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: ./gradlew integrationTest --continue -i
         if: always()
 
       - name: Scenario Tests
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
         run: ./gradlew scenariosTest --continue -i
         if: always()
 
