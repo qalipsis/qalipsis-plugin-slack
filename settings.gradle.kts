@@ -17,6 +17,8 @@
 rootProject.name = "qalipsis-plugins-slack"
 
 include(
-    "slack"
+    "qalipsis-plugin-slack"
 )
+
+project(":qalipsis-plugin-slack").projectDir = File(rootDir, "slack")
 
